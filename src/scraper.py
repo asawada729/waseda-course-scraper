@@ -75,7 +75,7 @@ def scrape_course(course_key) :
 
     add_to_json(data) # Write to a local file
     
-    print(requests.post(url="https://api.ratemywaseda.com/courses/", data={}, auth=HTTPBasicAuth("admin2", "password1")).content) # post to api, debug
+    #print(requests.post(url="https://api.ratemywaseda.com/courses/", data=json.dumps(data), auth=HTTPBasicAuth("admin2", "password1"), headers={"content-type": "application/json"})) # post to api, debug
     
 def scrape_page(soup_tag_page, per_page) :
     list_course_tags = soup_tag_page[6:6+per_page]
@@ -96,6 +96,7 @@ PER_PAGE = 10 # 10, 20, 50, or 100
 PAGE_INIT = 1
 home_url="https://www.wsl.waseda.jp/syllabus/JAA101.php?pLng=en"
 instance_base_url = "https://www.wsl.waseda.jp/syllabus/JAA104.php?pLng=en"
+#course_key_set = (,)
 
 payload = {"keyword": "signal processing",
            "p_number": PER_PAGE,
