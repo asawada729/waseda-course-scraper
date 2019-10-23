@@ -35,6 +35,7 @@ def add_to_json(data) :
             json.dump(current_data, json_file)
 
 def scrape_course(course_key) :
+    global course_data_list
     course_page_base_url = "https://www.wsl.waseda.jp/syllabus/JAA104.php?pLng=en"
     course_page_url = course_page_base_url + "&pKey=" + course_key
     
@@ -45,7 +46,7 @@ def scrape_course(course_key) :
     syllabus_info = soup_course_page.findAll(class_="ct-sirabasu")[1].tbody.findAll("tr")
 
     data = {}
-    data["syllabus_url"] = course_page_url
+    data["syllabus_url"] = [course_page_url]
     data["year"] = course_info[0].findAll("td")[0].string
     data["school"] = course_info[0].findAll("td")[1].string
     data["title"] = course_info[1].td.div.string
@@ -72,10 +73,15 @@ def scrape_course(course_key) :
     # data["schedule"] = syllabus_info[4].td.strings
     # data["textbooks"] = syllabus_info[6].td.strings
     # data["references"] = syllabus_info[7].td.strings
-
-    add_to_json(data) # Write to a local file
     
-    #print(requests.post(url="https://api.ratemywaseda.com/courses/", data=json.dumps(data), auth=HTTPBasicAuth("admin2", "password1"), headers={"content-type": "application/json"})) # post to api, debug
+    for scraped_course in course_data_list :
+        if course_data_list == [] :
+            break
+        if data["title"]==scraped_course["title"] and data["instructor"]==scraped_course["instructor"] and data["course_class_code"]==scraped_course["course_class_code"] :
+            course_data_list[course_data_list.index(scraped_course)]["syllabus_url"].extend(data["syllabus_url"]) 
+            return
+        
+    course_data_list.append(data)
     
 def scrape_page(soup_tag_page, per_page) :
     list_course_tags = soup_tag_page[6:6+per_page]
@@ -83,6 +89,8 @@ def scrape_page(soup_tag_page, per_page) :
     
     for i in range(0, per_page) :
         course_key = list_course_tags[i]["onclick"][32:60]
+        #print(len(course_key_set))
+        #print("Course key: ", course_key)
         scrape_course(course_key)
 
 def next_tag_page(soup_tag_page) :
@@ -91,12 +99,19 @@ def next_tag_page(soup_tag_page) :
     #next_page_number = int(soup_tag_page[n_tags-4]["onclick"][29])
     return int(soup_tag_page[n_tags-4]["onclick"][29])
 
+def write_to_local(all_scraped_courses) :
+    for course_data in all_scraped_courses :
+        add_to_json(course_data)
+
+def post_to_api(all_scraped_courses) :
+    for course_data in all_scraped_courses :
+        print(requests.post(url="https://api.ratemywaseda.com/courses/", data=json.dumps(course_data), auth=HTTPBasicAuth("admin2", "password1"), headers={"content-type": "application/json"})) # post to api, debug
 
 PER_PAGE = 10 # 10, 20, 50, or 100
 PAGE_INIT = 1
 home_url="https://www.wsl.waseda.jp/syllabus/JAA101.php?pLng=en"
 instance_base_url = "https://www.wsl.waseda.jp/syllabus/JAA104.php?pLng=en"
-#course_key_set = (,)
+course_data_list = []
 
 payload = {"keyword": "signal processing",
            "p_number": PER_PAGE,
@@ -117,14 +132,21 @@ payload = {"keyword": "signal processing",
 
 soup_first_page = soupify_post(home_url, payload)
 last_page_number = get_last_page(soup_first_page.findAll("a"), PER_PAGE)
+number_of_courses_queried = soup_first_page.findAll(class_="c-selectall")[0].div.p.font.string[9:11]
+print("Scraping ", number_of_courses_queried, " courses with ", last_page_number, " pages...")
 
 soup_current_tag_page = soup_first_page.findAll("a")
 for i in range(1, last_page_number) :
     scrape_page(soup_current_tag_page, PER_PAGE)
     
     next_page_number = next_tag_page(soup_current_tag_page)
+    assert type(next_page_number) is int
+    print("Going to page ", next_page_number)
     payload["p_page"] = next_page_number
     soup_current_tag_page = soupify_post(home_url, payload).findAll("a")
+
+write_to_local(course_data_list)
+#post_to_api(course_data_list)
 
 #TODO: scrape last page after the loop
 
