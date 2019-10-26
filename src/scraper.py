@@ -113,14 +113,15 @@ home_url="https://www.wsl.waseda.jp/syllabus/JAA101.php?pLng=en"
 instance_base_url = "https://www.wsl.waseda.jp/syllabus/JAA104.php?pLng=en"
 course_data_list = []
 
-payload = {"keyword": "signal processing",
+payload = {"keyword": "",
            "p_number": PER_PAGE,
            "p_page": PAGE_INIT,
            "s_bunya1_hid": "Please select the First Academic disciplines.",
-           "s_bunya2_hid": "Please select the First Academic disciplines.",
-           "s_bunya3_hid": "Please select the First Academic disciplines.",
+           "s_bunya2_hid": "Please select the Second Academic disciplines.",
+           "s_bunya3_hid": "Please select the Third Academic disciplines.",
            "p_gakki": "",
            "pfrontPage": "now",
+           "p_jigen": "22",
            "p_gengo": "02",
            "p_gakubu": 262006,
            "p_searcha": "a",
@@ -132,16 +133,18 @@ payload = {"keyword": "signal processing",
 
 soup_first_page = soupify_post(home_url, payload)
 last_page_number = get_last_page(soup_first_page.findAll("a"), PER_PAGE)
-number_of_courses_queried = soup_first_page.findAll(class_="c-selectall")[0].div.p.font.string[9:11]
+number_of_courses_queried = soup_first_page.findAll(class_="c-selectall")[0].div.p.font.string[9:]
 print("Scraping ", number_of_courses_queried, " courses with ", last_page_number, " pages...")
 
 soup_current_tag_page = soup_first_page.findAll("a")
 for i in range(1, last_page_number) :
+    print("Going to page ", i)
     scrape_page(soup_current_tag_page, PER_PAGE)
     
-    next_page_number = next_tag_page(soup_current_tag_page)
-    assert type(next_page_number) is int
-    print("Going to page ", next_page_number)
+    #next_page_number = next_tag_page(soup_current_tag_page)
+    #assert type(next_page_number) is int
+
+    next_page_number = i + 1
     payload["p_page"] = next_page_number
     soup_current_tag_page = soupify_post(home_url, payload).findAll("a")
 
