@@ -22,6 +22,12 @@ def get_last_page(soup_first_page_a_tags, per_page) :
     return int(soup_first_page_a_tags[n_tags-5].string)
 
 def add_to_json(data) :
+    """
+    Write one course data to a json file
+    Slow, becuase this code extracts the exising contents of the json file -> appends the new course in runtime -> delets json file -> writes the existing contents+apended new course
+    
+    Note that we don't handle duplicate courses when writing to json file.
+    """
     with open("course_data.json", "a+") as json_file :
         json_file.seek(0)
         try:
@@ -35,6 +41,10 @@ def add_to_json(data) :
             json.dump(current_data, json_file)
 
 def scrape_course(course_key) :
+    """
+    Pass a course page
+    Scraped course is appended to a global list variable
+    """
     global course_data_list
     course_page_base_url = "https://www.wsl.waseda.jp/syllabus/JAA104.php?pLng=en"
     course_page_url = course_page_base_url + "&pKey=" + course_key
@@ -84,6 +94,10 @@ def scrape_course(course_key) :
     course_data_list.append(data)
     
 def scrape_page(soup_tag_page, per_page) :
+    """
+    Pass one entire page of courses (A list of BeautifulSoup objects)
+    Also pass the number of course hyperlinks in the page
+    """
     list_course_tags = soup_tag_page[6:6+per_page]
     assert len(list_course_tags) == per_page
     
@@ -93,27 +107,33 @@ def scrape_page(soup_tag_page, per_page) :
         #print("Course key: ", course_key)
         scrape_course(course_key)
 
-def next_tag_page(soup_tag_page) :
-    n_tags = len(soup_tag_page)
-    assert soup_tag_page[n_tags - 4].string == "Next>"
-    #next_page_number = int(soup_tag_page[n_tags-4]["onclick"][29])
-    return int(soup_tag_page[n_tags-4]["onclick"][29])
-
 def write_to_local(all_scraped_courses) :
+    num_courses = 0
     for course_data in all_scraped_courses :
         add_to_json(course_data)
+        num_courses += 1
+    print("Wrote ", num_courses, " courses to course_data.json.")
 
 def post_to_api(all_scraped_courses) :
+    num_courses = 0
     for course_data in all_scraped_courses :
         print(requests.post(url="https://api.ratemywaseda.com/courses/", data=json.dumps(course_data), auth=HTTPBasicAuth("admin2", "password1"), headers={"content-type": "application/json"})) # post to api, debug
+        num_courses += 1
+    print("Posted ", num_courses, " courses to API.")
 
+
+#########################
+## Scraper starts here ##
+#########################
+
+# Set up macro, syllabus url, and post parameters
 PER_PAGE = 10 # 10, 20, 50, or 100
 PAGE_INIT = 1
 home_url="https://www.wsl.waseda.jp/syllabus/JAA101.php?pLng=en"
 instance_base_url = "https://www.wsl.waseda.jp/syllabus/JAA104.php?pLng=en"
 course_data_list = []
 
-payload = {"keyword": "",
+payload = {"keyword": "introduction to bioscience",
            "p_number": PER_PAGE,
            "p_page": PAGE_INIT,
            "s_bunya1_hid": "Please select the First Academic disciplines.",
@@ -121,9 +141,9 @@ payload = {"keyword": "",
            "s_bunya3_hid": "Please select the Third Academic disciplines.",
            "p_gakki": "",
            "pfrontPage": "now",
-           "p_jigen": "22",
+           "p_jigen": "",
            "p_gengo": "02",
-           "p_gakubu": 262006,
+           "p_gakubu": "",
            "p_searcha": "a",
            "p_searchb": "b",
            "pClsOpnSts": 123,
@@ -132,10 +152,14 @@ payload = {"keyword": "",
            }
 
 soup_first_page = soupify_post(home_url, payload)
+
+# Define boundaries
 last_page_number = get_last_page(soup_first_page.findAll("a"), PER_PAGE)
 number_of_courses_queried = soup_first_page.findAll(class_="c-selectall")[0].div.p.font.string[9:]
+
 print("Scraping ", number_of_courses_queried, " courses with ", last_page_number, " pages...")
 
+# Scrape pages...
 soup_current_tag_page = soup_first_page.findAll("a")
 for i in range(1, last_page_number) :
     print("Going to page ", i)
@@ -148,8 +172,11 @@ for i in range(1, last_page_number) :
     payload["p_page"] = next_page_number
     soup_current_tag_page = soupify_post(home_url, payload).findAll("a")
 
+# Handle scraping for last page
+num_courses_last_page = PER_PAGE if int(number_of_courses_queried) % PER_PAGE == 0 else int(number_of_courses_queried) % PER_PAGE
+print("Going to page ", last_page_number)
+scrape_page(soup_current_tag_page, num_courses_last_page)
+
+# Output
 write_to_local(course_data_list)
 #post_to_api(course_data_list)
-
-#TODO: scrape last page after the loop
-
