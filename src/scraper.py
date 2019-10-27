@@ -24,9 +24,9 @@ def get_last_page(soup_first_page_a_tags, per_page) :
 def add_to_json(data) :
     """
     Write one course data to a json file
-    Slow, becuase this code extracts the exising contents of the json file -> appends the new course in runtime -> delets json file -> writes the existing contents+apended new course
+    Slow, becuase this code extracts the exising contents of the json file -> appends the new course in runtime -> deletes contents in json file -> writes the existing contents+apended new course
     
-    Note that we don't handle duplicate courses when writing to json file.
+    Note that we don't handle duplicate data when writing to json file.
     """
     with open("course_data.json", "a+") as json_file :
         json_file.seek(0)
@@ -61,11 +61,11 @@ def scrape_course(course_key) :
     data["school"] = course_info[0].findAll("td")[1].string
     data["title"] = course_info[1].td.div.string
     data["instructor"] = course_info[2].td.string
-    data["term_day_period"] = course_info[3].td.string
+    # data["term_day_period"] = course_info[3].td.string
     data["category"] = course_info[4].findAll("td")[0].string
     data["eligible_year"] = course_info[4].findAll("td")[1].string
     data["credits"] = int(course_info[4].findAll("td")[2].string)
-    data["classroom"] = course_info[5].findAll("td")[0].string
+    #data["classroom"] = course_info[5].findAll("td")[0].string
     data["campus"] = course_info[5].findAll("td")[1].string
     data["course_class_code"] = course_info[6].findAll("td")[1].string
     data["main_language"] = course_info[7].td.string
@@ -74,7 +74,7 @@ def scrape_course(course_key) :
     data["second_academic_disciplines"] = course_info[10].td.string
     data["third_academic_disciplines"] = course_info[11].td.string
     data["level"] = course_info[12].findAll("td")[0].string
-    #data["type"] = course_info[12].findAll("td")[1].string
+    # data["type"] = course_info[12].findAll("td")[1].string
 
     # data["subtitle"] = syllabus_info[0].td.strings
     # data["outline"] = syllabus_info[1].td.strings
@@ -83,7 +83,26 @@ def scrape_course(course_key) :
     # data["schedule"] = syllabus_info[4].td.strings
     # data["textbooks"] = syllabus_info[6].td.strings
     # data["references"] = syllabus_info[7].td.strings
-    
+
+    term_split = course_info[3].td.string.split("\u00a0\u00a0")
+    data["term"] = term_split[0]
+    data["day_period"] = []
+    if "\uff0f" in term_split[1] :
+        for day_period in term_split[1].split("\uff0f") :
+            data["day_period"].append(day_period)
+
+    else :
+        data["day_period"].append(term_split[1])
+
+    classrooms = course_info[5].findAll("td")[0].string
+    data["classroom"] = []
+    if "\uff0f" in classrooms :
+        for classroom in classrooms.split("\uff0f") :
+            data["classroom"].append(classroom)
+    else :
+        data["classroom"].append(classrooms)
+
+        
     for scraped_course in course_data_list :
         if course_data_list == [] :
             break
