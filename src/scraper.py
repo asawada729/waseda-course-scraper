@@ -40,6 +40,13 @@ def add_to_json(data) :
             json_file.truncate(0)
             json.dump(current_data, json_file)
 
+def split_day_period(day_period) :
+    if "." in day_period :
+        res = day_period.split(".")
+    else :
+        res = [day_period, ""]
+    return res
+
 def scrape_course(course_key) :
     """
     Pass a course page
@@ -60,7 +67,7 @@ def scrape_course(course_key) :
     data["year"] = course_info[0].findAll("td")[0].string
     data["school"] = course_info[0].findAll("td")[1].string
     data["title"] = course_info[1].td.div.string
-    data["instructor"] = course_info[2].td.string
+    data["instructors"] = course_info[2].td.string
     # data["term_day_period"] = course_info[3].td.string
     data["category"] = course_info[4].findAll("td")[0].string
     data["eligible_year"] = course_info[4].findAll("td")[1].string
@@ -70,9 +77,7 @@ def scrape_course(course_key) :
     data["course_class_code"] = course_info[6].findAll("td")[1].string
     data["main_language"] = course_info[7].td.string
     data["course_code"] = course_info[8].td.string
-    data["first_academic_disciplines"] = course_info[9].td.string
-    data["second_academic_disciplines"] = course_info[10].td.string
-    data["third_academic_disciplines"] = course_info[11].td.string
+    data["academic_disciplines"] = [course_info[9].td.string, course_info[10].td.string, course_info[11].td.string] # first, second, third
     data["level"] = course_info[12].findAll("td")[0].string
     # data["type"] = course_info[12].findAll("td")[1].string
 
@@ -84,31 +89,38 @@ def scrape_course(course_key) :
     # data["textbooks"] = syllabus_info[6].td.strings
     # data["references"] = syllabus_info[7].td.strings
 
-    term_split = course_info[3].td.string.split("\u00a0\u00a0")
-    data["term"] = term_split[0]
-    data["day_period"] = []
-    if "\uff0f" in term_split[1] :
-        for day_period in term_split[1].split("\uff0f") :
-            data["day_period"].append(day_period)
-
-    else :
-        data["day_period"].append(term_split[1])
-
-    classrooms = course_info[5].findAll("td")[0].string
-    data["classroom"] = []
-    if "\uff0f" in classrooms :
-        for classroom in classrooms.split("\uff0f") :
-            data["classroom"].append(classroom)
-    else :
-        data["classroom"].append(classrooms)
-
-        
     for scraped_course in course_data_list :
         if course_data_list == [] :
             break
-        if data["title"]==scraped_course["title"] and data["instructor"]==scraped_course["instructor"] and data["course_class_code"]==scraped_course["course_class_code"] :
+        if data["title"]==scraped_course["title"] and data["instructors"]==scraped_course["instructors"] and data["course_class_code"]==scraped_course["course_class_code"] :
             course_data_list[course_data_list.index(scraped_course)]["syllabus_url"].extend(data["syllabus_url"]) 
             return
+
+    instructors = data["instructors"]
+    data["instructors"] = []
+    if "\uff0f" in instructors :
+        for instructor in instructors.split("\uff0f") :
+            data["instructors"].append(instructor)
+    else :
+        data["instructors"].append(instructors)
+
+    data["term"] = course_info[3].td.string.split("\u00a0\u00a0")[0]
+    days_periods = course_info[3].td.string.split("\u00a0\u00a0")[1]
+    classrooms = [course_info[5].findAll("td")[0].string]
+    classrooms = classrooms[0].split("\uff0f") if "\uff0f" in classrooms[0] else classrooms
+    data["sessions"] = []
+    if "\uff0f" in days_periods :
+        assert len(classrooms) > 1
+        for day_period in days_periods.split("\uff0f") :
+            session = {"day": split_day_period(day_period)[0][3:], "period": split_day_period(day_period)[1], "classrooms": []}
+            for classroom in classrooms :
+                if split_day_period(day_period)[0][0:3] in classroom :
+                    session["classrooms"].append(classroom[3:])
+            data["sessions"].append(session)
+
+    else :
+        assert len(classrooms) == 1
+        data["sessions"].append({"day": split_day_period(days_periods)[0], "period": split_day_period(days_periods)[1], "classroom": classrooms})
         
     course_data_list.append(data)
     
@@ -163,8 +175,9 @@ payload = {"keyword": "introduction to bioscience",
            "p_jigen": "",
            "p_gengo": "02",
            "p_gakubu": "",
-           "p_searcha": "a",
-           "p_searchb": "b",
+           "p_keya": "",
+           "p_searcha": "",
+           "p_searchb": "",
            "pClsOpnSts": 123,
            "ControllerParameters": "JAA103SubCon",
            "pLng": "en",
