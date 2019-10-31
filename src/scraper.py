@@ -3,15 +3,17 @@ from requests.auth import HTTPBasicAuth
 import urllib.request
 import time
 import json
+import re
+import pandas as pd
 from bs4 import BeautifulSoup
 
 def soupify_get(url) :
-    time.sleep(1)
+    #time.sleep(0.1)
     response = requests.get(url=url)
     return BeautifulSoup(response.text, "html.parser")
 
 def soupify_post(url, payload) :
-    time.sleep(1)
+    #time.sleep(0.1)
     response = requests.post(url=url, data=payload)
     return BeautifulSoup(response.text, "html.parser")
 
@@ -39,6 +41,10 @@ def add_to_json(data) :
             current_data["course_list"].append(data)
             json_file.truncate(0)
             json.dump(current_data, json_file)
+            
+def add_to_df(data) :
+    global df
+    df = df.append(data, ignore_index=True)
 
 def split_day_period(day_period) :
     if "." in day_period :
@@ -52,7 +58,7 @@ def scrape_course(course_key) :
     Pass a course page
     Scraped course is appended to a global list variable
     """
-    global course_data_list
+    #global course_data_list
     course_page_base_url = "https://www.wsl.waseda.jp/syllabus/JAA104.php?pLng=en"
     course_page_url = course_page_base_url + "&pKey=" + course_key
     
@@ -64,7 +70,7 @@ def scrape_course(course_key) :
 
     data = {}
     data["syllabus_url"] = [course_page_url]
-    data["year"] = course_info[0].findAll("td")[0].string
+    data["year"] = course_info[0].findAll("td")[0].string[0:4]
     data["school"] = course_info[0].findAll("td")[1].string
     data["title"] = course_info[1].td.div.string
     data["instructors"] = course_info[2].td.string
@@ -89,12 +95,17 @@ def scrape_course(course_key) :
     # data["textbooks"] = syllabus_info[6].td.strings
     # data["references"] = syllabus_info[7].td.strings
 
-    for scraped_course in course_data_list :
-        if course_data_list == [] :
-            break
-        if data["title"]==scraped_course["title"] and data["instructors"]==scraped_course["instructors"] and data["course_class_code"]==scraped_course["course_class_code"] :
-            course_data_list[course_data_list.index(scraped_course)]["syllabus_url"].extend(data["syllabus_url"]) 
-            return
+    # serial = data["title"] + data["course_class_code"] + data["instructors"]
+    # if serial in all_serials :
+    #     course_data_list[course_data_list.index(scraped_course)]["syllabus_url"].extend(data["syllabus_url"]) 
+    #     return
+    
+    # for scraped_course in course_data_list :
+    #     if course_data_list == [] :
+    #         break
+    #     if data["title"]==scraped_course["title"] and data["instructors"]==scraped_course["instructors"] and data["course_class_code"]==scraped_course["course_class_code"] :
+    #         course_data_list[course_data_list.index(scraped_course)]["syllabus_url"].extend(data["syllabus_url"]) 
+    #         return
 
     instructors = data["instructors"]
     data["instructors"] = []
@@ -110,19 +121,28 @@ def scrape_course(course_key) :
     classrooms = classrooms[0].split("\uff0f") if "\uff0f" in classrooms[0] else classrooms
     data["sessions"] = []
     if "\uff0f" in days_periods :
-        assert len(classrooms) > 1
+        #assert len(classrooms) > 1
         for day_period in days_periods.split("\uff0f") :
             session = {"day": split_day_period(day_period)[0][3:], "period": split_day_period(day_period)[1], "classrooms": []}
             for classroom in classrooms :
                 if split_day_period(day_period)[0][0:3] in classroom :
                     session["classrooms"].append(classroom[3:])
+                elif len(classrooms) == 1 :
+                    session["classrooms"].append(classroom)
             data["sessions"].append(session)
 
     else :
-        assert len(classrooms) == 1
-        data["sessions"].append({"day": split_day_period(days_periods)[0], "period": split_day_period(days_periods)[1], "classroom": classrooms})
-        
-    course_data_list.append(data)
+        #assert len(classrooms) == 1
+        session = {"day": split_day_period(days_periods)[0], "period": split_day_period(days_periods)[1], "classrooms": []}
+        if len(classrooms) > 1 :
+            for classroom in classrooms :
+                session["classrooms"].append(classroom)
+        else :
+            session["classrooms"].append(classrooms[0])
+        data["sessions"].append(session)
+
+    add_to_df(data)
+    #add_to_json(data)
     
 def scrape_page(soup_tag_page, per_page) :
     """
@@ -131,11 +151,9 @@ def scrape_page(soup_tag_page, per_page) :
     """
     list_course_tags = soup_tag_page[6:6+per_page]
     assert len(list_course_tags) == per_page
-    
+
     for i in range(0, per_page) :
         course_key = list_course_tags[i]["onclick"][32:60]
-        #print(len(course_key_set))
-        #print("Course key: ", course_key)
         scrape_course(course_key)
 
 def write_to_local(all_scraped_courses) :
@@ -158,13 +176,13 @@ def post_to_api(all_scraped_courses) :
 #########################
 
 # Set up macro, syllabus url, and post parameters
-PER_PAGE = 10 # 10, 20, 50, or 100
+PER_PAGE = 100 # 10, 20, 50, or 100
 PAGE_INIT = 1
 home_url="https://www.wsl.waseda.jp/syllabus/JAA101.php?pLng=en"
 instance_base_url = "https://www.wsl.waseda.jp/syllabus/JAA104.php?pLng=en"
-course_data_list = []
+df = pd.DataFrame()
 
-payload = {"keyword": "introduction to bioscience",
+payload = {"keyword": "",
            "p_number": PER_PAGE,
            "p_page": PAGE_INIT,
            "s_bunya1_hid": "Please select the First Academic disciplines.",
@@ -187,7 +205,7 @@ soup_first_page = soupify_post(home_url, payload)
 
 # Define boundaries
 last_page_number = get_last_page(soup_first_page.findAll("a"), PER_PAGE)
-number_of_courses_queried = soup_first_page.findAll(class_="c-selectall")[0].div.p.font.string[9:]
+number_of_courses_queried = re.findall("\d+", soup_first_page.findAll(class_="c-selectall")[0].div.p.font.string[9:])[0]
 
 print("Scraping ", number_of_courses_queried, " courses with ", last_page_number, " pages...")
 
@@ -210,5 +228,6 @@ print("Going to page ", last_page_number)
 scrape_page(soup_current_tag_page, num_courses_last_page)
 
 # Output
-write_to_local(course_data_list)
+df.to_csv("course_list.csv")
+#write_to_local(course_data_list)
 #post_to_api(course_data_list)
