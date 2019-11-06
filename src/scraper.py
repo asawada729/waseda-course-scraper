@@ -95,7 +95,7 @@ class WasedaScraper :
         
         data["year"] = course_info[0].findAll("td")[0].string[0:4]
         data["school"] = course_info[0].findAll("td")[1].string
-        data["title"] = course_info[1].td.div.string
+        data["title"] = "".join([str for str in course_info[1].td.div.strings]).replace("\n", " ")
         data["instructors"] = []
         # data["term_day_period"] = course_info[3].td.string
         data["category"] = course_info[4].findAll("td")[0].string
@@ -176,10 +176,10 @@ class WasedaScraper :
 #########################
 
 # Set up macro, syllabus url, and post parameters
-PER_PAGE = 10 # 10, 20, 50, or 100
+PER_PAGE = 100 # 10, 20, 50, or 100
 PAGE_INIT = 1
 
-payload = {"keyword": "signal processing",
+payload = {"keyword": "",
            "p_number": PER_PAGE,
            "p_page": PAGE_INIT,
            "s_bunya1_hid": "Please select the First Academic disciplines.",
