@@ -67,6 +67,7 @@ class WasedaScraper :
             course_key = list_course_tags[i]["onclick"][32:60]
             self.scrape_course(course_key)
 
+        # Append one page of courses to disk
         current_course_df = pd.read_csv("course_list.csv", index_col=0)
         pd.concat([current_course_df, self.course_df]).reset_index(drop=True).to_csv("course_list.csv")
         self.course_df = pd.DataFrame()
@@ -169,7 +170,7 @@ class WasedaScraper :
         else :
             res = [day_period, ""]
         return res
-
+    
 
 #########################
 ## Scraper starts here ##
